@@ -41,45 +41,63 @@ public class MinBraille2
 		System.out.println(wordSet.totalWeight());
 		System.out.println(wordSet.areAllEncodedWordsValid());
 		
-		/*
-		codingSet.add(new Glyph("A", "5"));
-		codingSet.add(new Glyph("B", "5"));
-		codingSet.add(new Glyph("AB", "7"));
-		//codingSet.add(new Glyph("BA", "6"));
-		codingSet.add(new Glyph("AA", "4"));
-		codingSet.add(new Glyph("BBB", "2"));
+		CodingSet codingSet2=new CodingSet();
+		codingSet2.cloneFrom(codingSet);
 		
-		Word w1 = new Word("ABBABBAAABBABBA","1");
-		Word w2 = new Word("CABBABBAAABBABBA","1");
-		w1.encode(codingSet);
-		w2.encode(codingSet);
-
-		System.out.println(w1);
-		System.out.println(w2);
+		codingSet2.swapGlyph(0,new Glyph(ngramdata_ar.get(64)[0],"1"));
+		System.out.print("Encoding again...");
+		wordSet.encodeAll(codingSet2);
+		System.out.println(" Complete");
 		
-		wordSet.add(w1);
-		wordSet.add(w2);
-		wordSet.encodeAll(codingSet);
 		System.out.println(wordSet.totalWeight());
-		*/
+		System.out.println(wordSet.areAllEncodedWordsValid());		
+		
 	}
 }
 
 class CodingSet
 {
 	private HashMap<String,Glyph> glyphs;
+	private ArrayList<String> glyphList;
 	
 	public CodingSet()
 	{
 		glyphs=new HashMap<String,Glyph>(0);
+		glyphList=new ArrayList<String>(0);
 	}
 	
-	public void add(Glyph c) { glyphs.put(c.getSequence(),c); }
-	public void remove(Glyph c) { glyphs.remove(c.getSequence()); }
+	public void add(Glyph c)
+	{
+		glyphs.put(c.getSequence(),c);
+		glyphList.add(c.getSequence());
+	}
+	public void remove(Glyph c)
+	{
+		glyphs.remove(c.getSequence());
+		glyphList.remove(c.getSequence());
+	}
 	public int size() { return glyphs.size(); }
+	public HashMap<String,Glyph> getHashMap() {return glyphs;}
+	public ArrayList<String> getArrayList() {return glyphList;}
+	
 	public Glyph findGlyph(Word s)
 	{
 		return glyphs.get(s.getSequence());
+	}
+	
+	public void cloneFrom(CodingSet B)
+	{
+		glyphs.clear();
+		glyphs.putAll(B.getHashMap());
+		
+		glyphList.clear();
+		glyphList.addAll(B.getArrayList());
+	}
+	
+	public void swapGlyph(int index, Glyph addMe)
+	{
+		glyphs.remove(glyphList.remove(index));
+		this.add(addMe);
 	}
 
 	public CodedWord encode(Word w)
