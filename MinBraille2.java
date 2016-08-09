@@ -1,57 +1,187 @@
-import java.io.*;
 import java.util.*;
-
+import java.text.*;
 public class MinBraille2
 {
+	private static final int SOLUTION_SIZE=63;
+	//private static Random random=new Random();
+
 	public static void main(String[] args)
 	{
-		System.out.print("Reading ngrams.txt...");
 		CSVReader reader = new CSVReader();
-		reader.setTargetFile("ngrams.txt");
-		reader.readFile();
-		ArrayList<String[]> ngramdata_ar = reader.getFileData();
-		System.out.println(" Complete");
 
-		System.out.print("Reading common-words.csv...");
+		reader.setTargetFile("ngrams-short.txt");
+		reader.readFile();		
+		ArrayList<String[]> ngramdata_ar = reader.getFileData();
+
 		reader.setTargetFile("common-words.csv");
 		reader.readFile();
 		ArrayList<String[]> wordlist_ar = reader.getFileData();
-		System.out.println(" Complete");
+
+		WordSet wordSet = new WordSet();
+		for(int i=0; i<1000 && i<wordlist_ar.size(); i++)
+			wordSet.add(new Word(wordlist_ar.get(i)[0],wordlist_ar.get(i)[1]));
 
 		CodingSet codingSet = new CodingSet();
-		WordSet wordSet = new WordSet();
+		for(char i='A'; i<='Z'; i++)
+			codingSet.add(new Glyph(""+i,1));
+		for(int i=0; i<ngramdata_ar.size() && codingSet.size()<SOLUTION_SIZE; i++)
+			codingSet.add(new Glyph("ZZZZ"+i,1));
+		
+		CodingSet testSet=new CodingSet();
 
-		System.out.print("Building coding set...");
-		for(int i=0; i<63 && i<ngramdata_ar.size(); i++)
-			codingSet.add(new Glyph(ngramdata_ar.get(i)[0],"1"));
-		System.out.println(" Complete");
-		
-		System.out.print("Building wordSet...");
-		for(int i=0; i<200 && i<wordlist_ar.size(); i++)
-			wordSet.add(new Word(wordlist_ar.get(i)[0],wordlist_ar.get(i)[1]));
-		System.out.println(" Complete");
-		
-		System.out.print("Encoding...");
 		wordSet.encodeAll(codingSet);
-		System.out.println(" Complete");
+		double currentScore=wordSet.totalWeight();
+		double testScore;
 
-		for(int i=0; i<wordSet.size(); i++)
-			System.out.println(wordSet.get(i));
+		for(int glyphIndex=0; glyphIndex<ngramdata_ar.size(); glyphIndex++)
+		{
+			if(glyphIndex%100==0)
+				System.out.println("Testing index "+glyphIndex+"/"+ngramdata_ar.size()+"...");
+			int target=-1;
+			String subject=ngramdata_ar.get(glyphIndex)[0];
+			if(subject.length()>1)
+			{
+				for(int i=0; i<codingSet.size(); i++)
+				{
+					if(codingSet.get(i).length()>1)
+					{
+						testSet.cloneFrom(codingSet);
+						testSet.swapGlyph(i,new Glyph(subject,1));
+						wordSet.encodeAll(testSet);
+						testScore=wordSet.totalWeight();
+						if(testScore<currentScore)
+						{
+							currentScore=testScore;
+							target=i;
+						}
+					}
+				}
+				if(target!=-1)
+				{
+					codingSet.swapGlyph(target,new Glyph(ngramdata_ar.get(glyphIndex)[0],1));
+					//System.out.println(codingSet.getStatusReport());
+					//System.out.println("currentScore: "+formatNumber(currentScore));
+				}
+			}
+		}
+		wordSet.encodeAll(codingSet);		
+		//codingSet.sortGlyphsByFreq();
+
+		System.out.println("Final results:");
+		System.out.println(codingSet.getStatusReport());
+		System.out.println("currentScore: "+formatNumber(currentScore));
+	/*
+		//Simulated annealing
+		double currentTemp=100;
+		double minTemp=.000000001;
+		double coolingFactor=0.99999;
+
+		double testScore;
+		int swapTargetA, swapTargetB;
+
+		CodingSet testSet=new CodingSet();
+		testSet.cloneFrom(codingSet);
+
+		while(currentTemp>minTemp)
+		{
+			//Select a random glyph in the current set
+			//that's not a single character
+			do{
+				swapTargetA=random.nextInt(codingSet.size());
+			}while(codingSet.get(swapTargetA).length()==1);
+
+			//Pick a random glyph outside of the current set
+			do{
+				swapTargetB=random.nextInt(ngramdata_ar.size());
+			}while(codingSet.glyphExists(ngramdata_ar.get(swapTargetB)[0]));
 			
-		System.out.println(wordSet.totalWeight());
-		System.out.println(wordSet.areAllEncodedWordsValid());
-		
+			//Swap them and calculate the difference in totalWeight()
+			testSet.swapGlyph(swapTargetA,
+					new Glyph(ngramdata_ar.get(swapTargetB)[0],1));
+
+			wordSet.encodeAll(testSet);
+			testScore=wordSet.totalWeight();
+
+			if(accepted(currentScore,testScore,currentTemp))
+			{
+				codingSet.cloneFrom(testSet);
+				currentScore=testScore;
+				System.out.println("currentScore: "+formatNumber(currentScore));
+			}
+			else
+			{
+				testSet.cloneFrom(codingSet);
+				currentTemp*=coolingFactor;
+			}
+		}
+		System.out.println(codingSet.getStatusReport());
+	*/
+	/*
+		codingSet.resetGlyphFreq();
+		codingSet.assignEqualWeights(0);
+
+		for(int i=0; i<args.length; i+=2)
+		{
+			//System.out.println(codingSet.encode(new Word(args[i],0)).getWeight());
+			codingSet.add(new Glyph(args[i],args[i+1]));
+		}
+
+		wordSet.encodeAll(codingSet);
+		codingSet.sortGlyphsByFreq();
+		System.out.println(codingSet.getStatusReport());
+		System.out.println(wordSet.getStatus());
+	*/
+	}
+
+	/*
+	//Acceptance function for Simulated Annealing
+	private static boolean accepted(double currentScore, double testScore, double currentTemp)
+	{
+		//The +1 ensures that diff>0 and P<1. Otherwise diff is frequently 0.
+		double diff=(testScore-currentScore)+1;
+
+		//Always accept a better state.		
+		if(diff<0)
+			return true;
+
+		//Probability of acceptance of a worse state.
+		//as currentTemp decreases, -diff/currentTemp will be distributed over a larger
+		//range of X-values, resulting in smaller values for P.
+		//Checking that P exceeds a random value between (0-1) ensures that as the
+		//currentTemp decreases, fewer worse states will be accepted.
+		double P=Math.exp(-diff/currentTemp);
+		return (random.nextDouble()<P);
+	}
+
+	private static double testValue(WordSet wordSet, CodingSet codingSet1, String candidate)
+	{
+		codingSet1.resetGlyphFreq();
+		codingSet1.assignEqualWeights(1);
+		wordSet.encodeAll(codingSet1);
+		double weight1=wordSet.totalWeight();
+
 		CodingSet codingSet2=new CodingSet();
-		codingSet2.cloneFrom(codingSet);
-		
-		codingSet2.swapGlyph(0,new Glyph(ngramdata_ar.get(64)[0],"1"));
-		System.out.print("Encoding again...");
+		codingSet2.cloneFrom(codingSet1);
+		codingSet2.add(new Glyph(candidate,0));
+
+		codingSet2.resetGlyphFreq();
 		wordSet.encodeAll(codingSet2);
-		System.out.println(" Complete");
 		
-		System.out.println(wordSet.totalWeight());
-		System.out.println(wordSet.areAllEncodedWordsValid());		
+		codingSet2.sortGlyphsByFreq();
+		codingSet2.truncateGlyphListSize(63);
+		codingSet2.resetGlyphFreq();
+		wordSet.encodeAll(codingSet2);
 		
+		double weight2=wordSet.totalWeight();
+		return weight1-weight2;
+		//returns a positive value incidating weight savings by including candidate
+		//glyph in coding set. Does not alter original coding set other than modifying
+		//weight/frequency data
+	}
+	*/
+	public static String formatNumber(double x)
+	{
+		return NumberFormat.getInstance().format(x);
 	}
 }
 
@@ -68,36 +198,124 @@ class CodingSet
 	
 	public void add(Glyph c)
 	{
-		glyphs.put(c.getSequence(),c);
-		glyphList.add(c.getSequence());
+		if(!glyphExists(c))
+		{
+			glyphs.put(c.getSequence(),c);
+			glyphList.add(c.getSequence());
+		}
 	}
 	public void remove(Glyph c)
 	{
 		glyphs.remove(c.getSequence());
 		glyphList.remove(c.getSequence());
 	}
+	public String truncateGlyphListSize(int x)
+	{
+		String ret="";
+		if(this.size()>x)
+		{
+			Glyph g=findRightmostContraction();
+			remove(g);
+			ret=g.getSequence();
+		}
+		return ret;
+	}
+	private Glyph findRightmostContraction()
+	{
+		//Find Glyph with the highest index in glyphList array
+		//that consists of more than one character
+		int i=0;
+		for(i=glyphList.size()-1; i>=0 && glyphList.get(i).length()==1; i--);
+		return findGlyph(glyphList.get(i));
+	}
+	public String get(int i) { return glyphList.get(i); }
 	public int size() { return glyphs.size(); }
 	public HashMap<String,Glyph> getHashMap() {return glyphs;}
 	public ArrayList<String> getArrayList() {return glyphList;}
 	
+	public boolean glyphExists(Glyph s)
+	{
+		return glyphExists(s.getSequence());
+	}
+	public boolean glyphExists(String s)
+	{
+		return glyphs.get(s)!=null;
+	}
+
 	public Glyph findGlyph(Word s)
 	{
-		return glyphs.get(s.getSequence());
+		return findGlyph(s.getSequence());
+	}
+	public Glyph findGlyph(String s)
+	{
+		return glyphs.get(s);
 	}
 	
 	public void cloneFrom(CodingSet B)
 	{
 		glyphs.clear();
-		glyphs.putAll(B.getHashMap());
-		
 		glyphList.clear();
-		glyphList.addAll(B.getArrayList());
+		for(String s: B.getArrayList())
+			add(new Glyph(s,B.findGlyph(s).getWeight()));
 	}
 	
 	public void swapGlyph(int index, Glyph addMe)
 	{
 		glyphs.remove(glyphList.remove(index));
 		this.add(addMe);
+	}
+
+	public void sortGlyphsByFreq()
+	{
+		for(int i=0; i<glyphList.size()-1; i++)
+		{
+			int target=i;
+			for(int j=i+1; j<glyphList.size(); j++)
+				if(glyphs.get(glyphList.get(j)).getFreq() > glyphs.get(glyphList.get(target)).getFreq())
+					target=j;
+			if(i!=target)
+				swapGlyphsByIndex(target,i);
+		}
+	}
+
+	public void swapGlyphsByIndex(int A, int B)
+	{
+		String sA=glyphList.get(A);
+		String sB=glyphList.get(B);
+		glyphList.set(A,sB);
+		glyphList.set(B,sA);
+	}
+
+	public void assignEqualWeights(int w)
+	{
+		for(String s:glyphList)
+			glyphs.get(s).setWeight(w);
+	}
+	public void assignStandardWeights()
+	{
+		int count=1;
+		for(String s:glyphList)
+			glyphs.get(s).setWeight(calcWeightByIndex(count++));
+	}
+	public void resetGlyphFreq()
+	{
+		for(String s:glyphList)
+			glyphs.get(s).resetFreq();
+	}
+
+	private int calcWeightByIndex(int x)
+	// returns the numbers 0-6 based on Pascal's triangle:
+	// 1 - 6 - 15 - 20 - 15 - 6 - 1
+	// this corresponds to the number of dots on each configuration of glyph
+	{
+		if(x<1) return 0;
+		else if(x<7) return 1;
+		else if(x<22) return 2;
+		else if(x<42) return 3;
+		else if(x<57) return 4;
+		else if(x<63) return 5;
+		else if(x<64) return 6;
+		return -1;
 	}
 
 	public CodedWord encode(Word w)
@@ -119,6 +337,21 @@ class CodingSet
 			}
 		}
 		return bestSoFar;
+	}
+	public String getStatusReport()
+	{
+		String ret="";
+		for(String s:glyphList)
+			ret+=s+"\t"+
+			     glyphs.get(s).getWeight()+"\t"+
+			     this.prettyPrint(glyphs.get(s).getFreq())+"\n";
+		return ret.trim();
+	}
+	private String prettyPrint(double n)
+	{
+		String ret="                                       ";
+		ret+=(NumberFormat.getInstance().format(n));
+		return ret.substring(ret.length()-20);
 	}
 }
 
@@ -142,6 +375,12 @@ class CodedWord
 	}
 	public int size() { return glyphs.size(); }
 	public Glyph get(int i) { return glyphs.get(i); }
+
+	public void incrGlyphsBy(double x)
+	{
+		for (Glyph g: glyphs)
+			g.incrFreqBy(x);
+	}
 
 	public int getWeight()
 	{
@@ -172,15 +411,32 @@ class Glyph
 {
 	private String sequence;
 	private int weight;
+	private double freq;
+
+	public Glyph(String l)
+	{
+		this(l,0);
+	}
 	public Glyph(String l, String w)
 	{
-		setSequence(l);
-		setWeight(Integer.parseInt(w));
+		this(l,Integer.parseInt(w));
 	}
+	public Glyph(String l, int w)
+	{
+		resetFreq();
+		setSequence(l);
+		setWeight(w);
+	}
+
 	public String getSequence() { return sequence; }
 	public void setSequence(String s) { sequence=s; }
+
 	public int getWeight() { return weight; }
 	public void setWeight(int x) { weight=x; }
+
+	public void resetFreq() { freq=0; }
+	public void incrFreqBy(double amt) { freq+=amt; }
+	public double getFreq() { return freq; }
 
 	public String toString()
 	{
@@ -199,8 +455,8 @@ class WordSet
 	public void add(Word w) { words.add(w); }
 	public void encodeAll(CodingSet c)
 	{
-		int size=words.size();
-		int count=0;
+		//int size=words.size();
+		//int count=0;
 		for(Word w:words)
 		{
 		    w.encode(c);
@@ -212,6 +468,11 @@ class WordSet
 		for(Word w:words)
 		    total+=w.getFrequency()*w.getEncodedWeight();
 		return total;
+	}
+	public String getStatus()
+	{
+		return "TOTAL: "+(NumberFormat.getInstance().format(this.totalWeight())+" / "
+		+(this.areAllEncodedWordsValid()?"valid":"invalid"));
 	}
 	public boolean areAllEncodedWordsValid()
 	{
@@ -266,6 +527,7 @@ class Word
 	public void encode(CodingSet cs)
 	{
 		encodedWord = cs.encode(this);
+		encodedWord.incrGlyphsBy(frequency);
 	}
 	public boolean encodedValid()
 	{
