@@ -1,4 +1,9 @@
-# BrailleCompression
+# SubstringCompression
+
+Based on a StackExchange question I submitted in April 2016. The original goal was to apply "Compression by Substring Enumeration" concepts to the English Braille alphabet as an experiment in lossless data compression. Below is the original question:
+
+-----
+
 
 Background:
 
@@ -44,6 +49,8 @@ Questions:
 Is there a better approach to this problem than simple brute-force or guess-and-check?
 
 Given the study and data (Google books Ngrams, English 20120701 1-grams) linked above, what is the optimal mapping of Braille characters to English letters and letter sequences?
+
+-----
 
 Update, August 9th, 2016:
 There is a process called "Compression by Substring Enumeration" (CSE) that is similar if not identical to the goals of this project. It may be worthwhile to investigate the studies done on this subject.
